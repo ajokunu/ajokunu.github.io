@@ -12,7 +12,7 @@ export const profile = {
 	linkedin: 'https://www.linkedin.com/in/aaron-lindahl-58574a108',
 	medium: 'https://medium.com/@ajokunu',
 	awsCommunity: 'https://community.aws/u/ajokunu',
-	email: 'aaron.lindahl@mastercard.com',
+	email: null,
 	githubHandle: 'ajokunu',
 	followers: '4,502',
 	connections: '500+'
@@ -38,7 +38,7 @@ export const timeline = [
 	{
 		type: 'job',
 		current: true,
-		date: 'Current',
+		date: '2024 – Present',
 		title: 'Mastercard',
 		subtitle: 'Security Engineer — Greater Boston',
 		detail: 'Cloud Security + AI Builder. Designing threat models, guiding secure cloud adoption, and shaping security strategy for critical financial infrastructure. AWS Community Builder.',
@@ -122,10 +122,10 @@ export const timeline = [
 	},
 	{
 		type: 'job',
-		date: 'Previous',
+		date: '2022 – 2024',
 		title: 'Mass General Brigham',
 		subtitle: 'Security Engineering — Boston, MA',
-		detail: 'Built and maintained security infrastructure for one of the largest healthcare networks. Implemented detection pipelines and vulnerability management programs protecting sensitive patient data.',
+		detail: 'Engineered security monitoring and detection infrastructure for a major healthcare network. Built SIEM detection pipelines, managed vulnerability remediation programs, and ensured HIPAA compliance across cloud and on-premises systems.',
 		tags: []
 	},
 	{
@@ -140,10 +140,10 @@ export const timeline = [
 	},
 	{
 		type: 'job',
-		date: 'Previous',
+		date: '2021 – 2022',
 		title: 'Tenable',
 		subtitle: 'Security Engineering — Columbia, MD',
-		detail: 'Worked on vulnerability management tooling at one of the industry\'s leading cybersecurity companies. Deep expertise in vulnerability assessment and exposure management.',
+		detail: 'Developed automated vulnerability scanning workflows and Python integrations using the PyTenable SDK. Built asset discovery and prioritization tooling that streamlined exposure management across enterprise environments.',
 		tags: []
 	},
 	{
@@ -157,10 +157,10 @@ export const timeline = [
 	},
 	{
 		type: 'job',
-		date: 'Previous',
+		date: '2019 – 2021',
 		title: 'Wayfair',
 		subtitle: 'Security Engineering — Boston, MA',
-		detail: 'Built security engineering capabilities at scale for one of the largest e-commerce platforms. Focused on cloud security and application security programs.',
+		detail: 'Implemented cloud security controls and application security automation for a high-traffic e-commerce platform. Supported security architecture reviews, CI/CD pipeline security integration, and AWS infrastructure hardening.',
 		tags: []
 	}
 ];

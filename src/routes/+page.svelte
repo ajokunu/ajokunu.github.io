@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { profile, timeline, skills, branchConfig, branchOrder, getBranches } from '$lib/data.js';
+  import SocGame from '$lib/SocGame.svelte';
 
   const branches = getBranches(timeline);
   let nodeEls = {};
@@ -409,6 +410,9 @@
   </div>
 </section>
 
+<!-- MINI-GAME -->
+<SocGame />
+
 <!-- TIMELINE END -->
 <div class="timeline-end">
   <p>
@@ -426,12 +430,12 @@
 <footer class="footer">
   <div class="footer-cta">
     <h4>Let's build something secure.</h4>
-    <p>Currently open to Security Architect & Lead Security Engineer roles.</p>
+    <p>Open to Senior Security Engineer & Security Architecture opportunities.</p>
   </div>
   <div class="footer-links">
     <a href={profile.github} target="_blank" rel="noopener">GitHub</a>
     <a href={profile.linkedin} target="_blank" rel="noopener">LinkedIn</a>
-    <a href="mailto:aaron.lindahl@mastercard.com" class="footer-email">Get in touch</a>
+    <a href={profile.linkedin} target="_blank" rel="noopener" class="footer-email">Get in touch</a>
   </div>
   <p class="footer-colophon">Built with Svelte &middot; Designed with spite and coffee</p>
 </footer>
