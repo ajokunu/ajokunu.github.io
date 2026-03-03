@@ -1,0 +1,17 @@
+{
+  "name": "portfolio-svelte",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@sveltejs/adapter-static": "^3.0.6",
+    "@sveltejs/kit": "^2.8.0",
+    "@sveltejs/vite-plugin-svelte": "^3.1.0",
+    "svelte": "^4.2.19",
+    "vite": "^5.4.11"
+  }
+}
