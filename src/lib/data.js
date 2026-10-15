@@ -20,14 +20,14 @@ export const profile = {
 
 export const about = [
 	'Since 2019 I have worked my way from the help desk to cloud security architecture, and I still like the same thing about the work: taking something complicated and making it safe enough that nobody has to think about it.',
-	'Today I am a Lead Information Security Consultant at Capital One in New York, where I built a Claude skill that does the first pass of API security review. Before that I was a Senior Information Security Engineer at Mastercard, where I shipped a zero-trust mTLS and PrivateLink design across 12 AWS accounts, and at Mass General Brigham, where I rolled CrowdStrike CNAPP out across 80,000+ cloud assets.',
+	'Today I am a Manager, Cyber Security (Information Security Office Consultant) at Capital One in New York, where I built a Claude skill that does the first pass of API security review. Before that I was a Senior Information Security Engineer at Mastercard, where I shipped a zero-trust mTLS and PrivateLink design across 12 AWS accounts, and at Mass General Brigham, where I rolled CrowdStrike CNAPP out across 80,000+ cloud assets.',
 	'Outside of work I build TableTales, which started as a Discord bot called Donnie that ran my own D&D table and grew into a full AI-powered virtual tabletop. I am also finishing an M.Eng in Cybersecurity at NYU Tandon and studying Korean.'
 ];
 
 export const experience = [
 	{
 		company: 'Capital One',
-		title: 'Lead Information Security Consultant',
+		title: 'Manager, Cyber Security - Information Security Office Consultant',
 		team: 'Global Payment Network',
 		dates: 'Apr 2026 to now',
 		current: true,
