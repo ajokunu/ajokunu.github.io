@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build:preview": "mv src/routes/+layout.js /tmp/layout.js.bak && PREVIEW=1 vite build && sed -i 's#\"/app/#\"./app/#g; s#\"/favicon#\"./favicon#g' build-preview/index.html; s=$?; mv /tmp/layout.js.bak src/routes/+layout.js; exit $s"
   },
   "dependencies": {
     "@sveltejs/adapter-static": "^3.0.6",

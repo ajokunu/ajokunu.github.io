@@ -1,1342 +1,934 @@
 <script>
-  import { onMount } from 'svelte';
-  import { profile, timeline, skills, branchConfig, branchOrder, getBranches } from '$lib/data.js';
-  import SocGame from '$lib/SocGame.svelte';
+	import { onMount } from 'svelte';
+	import {
+		profile, about, experience, featured, projects, sideQuests,
+		writing, nessusSeries, certs, education, affiliations, toolbox
+	} from '$lib/data.js';
+	import Topo from '$lib/Topo.svelte';
+	import Dice from '$lib/Dice.svelte';
+	import Art from '$lib/Art.svelte';
+	import TableTales from '$lib/TableTales.svelte';
 
-  const branches = getBranches(timeline);
-  let nodeEls = {};
-  let visible = {};
-  let expanded = {};
-  let heroReady = false;
-  let hubVisible = false;
-  let branchesRevealed = {};
-  let typedText = '';
-  let showCursor = true;
-  let avatarHovered = false;
-  let scrollHintVisible = true;
-  let expandedCount = 0;
-  let svgEl;
-  let treeEl;
+	const sections = [
+		{ id: 'about', label: 'About' },
+		{ id: 'tabletales', label: 'TableTales' },
+		{ id: 'experience', label: 'Experience' },
+		{ id: 'work', label: 'Work' },
+		{ id: 'writing', label: 'Writing' },
+		{ id: 'credentials', label: 'Credentials' },
+		{ id: 'side-quests', label: 'Side quests' }
+	];
 
-  const phrases = [
-    'Security Engineer @ Capital One',
-    'NYU Engineering Student',
-    'Cloud Security + AI Builder',
-    'AWS Community Builder',
-    'Dungeon Master (the other kind)',
-    'Threat Model Enthusiast'
-  ];
-  let phraseIdx = 0;
+	let active = 'about';
+	let email = '';
+	let theme = 'light';
+	let localTime = '';
+	let greeting = 'Hello';
+	let copied = false;
 
-  function nodeKey(type, i) { return `${type}-${i}`; }
+	// Scroll to a section without touching the URL, so it works under any router
+	function jump(e, id) {
+		e.preventDefault();
+		const el = document.getElementById(id);
+		if (!el) return;
+		el.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+		el.querySelector('h2')?.focus?.({ preventScroll: true });
+	}
 
-  function getColor(type) {
-    return branchConfig[type]?.color || 'blue';
-  }
+	function toggleTheme() {
+		theme = theme === 'dark' ? 'light' : 'dark';
+		document.documentElement.dataset.theme = theme;
+		try { localStorage.setItem('theme', theme); } catch (e) {}
+	}
 
-  function getTypeLabel(type) {
-    return branchConfig[type]?.label || 'Project';
-  }
+	async function copyEmail() {
+		try {
+			await navigator.clipboard.writeText(email);
+			copied = true;
+			setTimeout(() => (copied = false), 1800);
+		} catch (e) {
+			location.href = `mailto:${email}`;
+		}
+	}
 
-  function getClickHint(type) {
-    if (type === 'job') return 'tap for the backstory';
-    if (type === 'dnd') return 'tap to roll for initiative';
-    return 'tap to inspect payload';
-  }
+	// Card spotlight: a warm glow that follows the pointer
+	function spotlight(node) {
+		const move = (e) => {
+			const r = node.getBoundingClientRect();
+			node.style.setProperty('--x', `${e.clientX - r.left}px`);
+			node.style.setProperty('--y', `${e.clientY - r.top}px`);
+		};
+		node.addEventListener('pointermove', move);
+		return { destroy: () => node.removeEventListener('pointermove', move) };
+	}
 
-  async function typePhrase(phrase) {
-    typedText = '';
-    for (let i = 0; i < phrase.length; i++) {
-      typedText = phrase.slice(0, i + 1);
-      await new Promise(r => setTimeout(r, 40 + Math.random() * 30));
-    }
-    await new Promise(r => setTimeout(r, 2500));
-    for (let i = phrase.length; i >= 0; i--) {
-      typedText = phrase.slice(0, i);
-      await new Promise(r => setTimeout(r, 20));
-    }
-    await new Promise(r => setTimeout(r, 400));
-    phraseIdx = (phraseIdx + 1) % phrases.length;
-    typePhrase(phrases[phraseIdx]);
-  }
+	function tickClock() {
+		const now = new Date();
+		localTime = now.toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit' });
+		const h = Number(now.toLocaleString('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false }));
+		greeting = h < 5 ? 'Up late?' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+	}
 
-  function toggleExpand(key) {
-    if (!expanded[key]) expandedCount++;
-    expanded[key] = !expanded[key];
-    expanded = expanded;
-    // Recalculate connectors after card expand animation
-    setTimeout(updateConnectors, 550);
-  }
+	onMount(() => {
+		email = profile.emailParts.join('@');
+		const stored = document.documentElement.dataset.theme;
+		theme = stored || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+		document.documentElement.classList.add('js');
 
-  function updateConnectors() {
-    if (!svgEl || !treeEl) return;
-    const treeRect = treeEl.getBoundingClientRect();
-    const hubNode = document.querySelector('.hub-node');
-    if (!hubNode) return;
-    const hubRect = hubNode.getBoundingClientRect();
-    const hubCx = hubRect.left + hubRect.width / 2 - treeRect.left;
-    const hubCy = hubRect.bottom - treeRect.top;
+		tickClock();
+		const clock = setInterval(tickClock, 30000);
 
-    let paths = '';
+		// Reveal on scroll
+		const reveal = new IntersectionObserver(
+			(entries) => entries.forEach((e) => {
+				if (e.isIntersecting) {
+					e.target.classList.add('in');
+					reveal.unobserve(e.target);
+				}
+			}),
+			{ rootMargin: '0px 0px -8% 0px', threshold: 0.08 }
+		);
+		document.querySelectorAll('.reveal').forEach((el) => reveal.observe(el));
 
-    branchOrder.forEach((type, branchIdx) => {
-      const items = branches[type];
-      const color = `var(--${branchConfig[type].color})`;
-      const firstEl = nodeEls[nodeKey(type, 0)];
-      if (!firstEl) return;
+		// Scroll spy for the nav
+		const spy = new IntersectionObserver(
+			(entries) => entries.forEach((e) => { if (e.isIntersecting) active = e.target.id; }),
+			{ rootMargin: '-40% 0px -55% 0px' }
+		);
+		sections.forEach((s) => { const el = document.getElementById(s.id); if (el) spy.observe(el); });
 
-      // Get branch header dot position
-      const branchHeader = firstEl.closest('.tree-branch')?.querySelector('.branch-dot');
-      if (!branchHeader) return;
-      const headerRect = branchHeader.getBoundingClientRect();
-      const hx = headerRect.left + headerRect.width / 2 - treeRect.left;
-      const hy = headerRect.top + headerRect.height / 2 - treeRect.top;
-
-      // Fork line from hub to branch header
-      const midY = hubCy + (hy - hubCy) * 0.5;
-      paths += `<path d="M ${hubCx} ${hubCy} C ${hubCx} ${midY}, ${hx} ${midY}, ${hx} ${hy}"
-        stroke="${color}" stroke-width="2" fill="none" opacity="0.4"
-        class="fork-line fork-${type} ${branchesRevealed[type] ? 'drawn' : ''}" />`;
-
-      // Node-to-node connectors within branch
-      for (let i = 0; i < items.length; i++) {
-        const el = nodeEls[nodeKey(type, i)];
-        if (!el) continue;
-        const dot = el.querySelector('.node-connector-dot');
-        if (!dot) continue;
-        const dotRect = dot.getBoundingClientRect();
-        const dx = dotRect.left + dotRect.width / 2 - treeRect.left;
-        const dy = dotRect.top + dotRect.height / 2 - treeRect.top;
-
-        if (i === 0) {
-          // Connect branch header to first node
-          paths += `<line x1="${hx}" y1="${hy + 8}" x2="${dx}" y2="${dy - 8}"
-            stroke="${color}" stroke-width="2" fill="none" opacity="0.25" />`;
-        }
-
-        if (i < items.length - 1) {
-          const nextEl = nodeEls[nodeKey(type, i + 1)];
-          if (!nextEl) continue;
-          const nextDot = nextEl.querySelector('.node-connector-dot');
-          if (!nextDot) continue;
-          const ndRect = nextDot.getBoundingClientRect();
-          const nx = ndRect.left + ndRect.width / 2 - treeRect.left;
-          const ny = ndRect.top + ndRect.height / 2 - treeRect.top;
-          paths += `<line x1="${dx}" y1="${dy + 8}" x2="${nx}" y2="${ny - 8}"
-            stroke="${color}" stroke-width="2" fill="none" opacity="0.2" />`;
-        }
-      }
-    });
-
-    svgEl.innerHTML = paths;
-  }
-
-  // Photo fallback
-  let photoSrc = profile.avatar;
-
-  onMount(() => {
-    // Check for local photo
-    const testImg = new Image();
-    testImg.onload = () => { photoSrc = '/photo.jpg'; };
-    testImg.src = '/photo.jpg';
-
-    setTimeout(() => { heroReady = true; }, 200);
-    setTimeout(() => { hubVisible = true; }, 800);
-    setTimeout(() => typePhrase(phrases[0]), 1200);
-    setInterval(() => { showCursor = !showCursor; }, 530);
-
-    // Reveal branches with stagger
-    branchOrder.forEach((type, i) => {
-      setTimeout(() => {
-        branchesRevealed[type] = true;
-        branchesRevealed = branchesRevealed;
-        setTimeout(updateConnectors, 100);
-      }, 1200 + i * 300);
-    });
-
-    // IntersectionObserver for nodes
-    const observer = new IntersectionObserver((entries) => {
-      let delay = 0;
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          const key = entry.target.dataset.key;
-          if (key && !visible[key]) {
-            setTimeout(() => {
-              visible[key] = true;
-              visible = visible;
-              requestAnimationFrame(updateConnectors);
-            }, delay);
-            delay += 120;
-            observer.unobserve(entry.target);
-          }
-        }
-      });
-    }, { threshold: 0.15, rootMargin: '0px 0px -40px 0px' });
-
-    Object.values(nodeEls).forEach(el => {
-      if (el) observer.observe(el);
-    });
-
-    // Scroll hint
-    const handleScroll = () => {
-      if (window.scrollY > 100) scrollHintVisible = false;
-    };
-    window.addEventListener('scroll', handleScroll, { passive: true });
-
-    // Resize handler
-    let resizeTimer;
-    const handleResize = () => {
-      clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(updateConnectors, 100);
-    };
-    window.addEventListener('resize', handleResize, { passive: true });
-
-    // Initial connector draw
-    setTimeout(updateConnectors, 2000);
-
-    return () => {
-      observer.disconnect();
-      window.removeEventListener('scroll', handleScroll);
-      window.removeEventListener('resize', handleResize);
-    };
-  });
+		return () => { clearInterval(clock); reveal.disconnect(); spy.disconnect(); };
+	});
 </script>
 
 <svelte:head>
-  <title>{profile.name} - {profile.title}</title>
+	<title>Aaron Lindahl · AI and Cloud Security Engineer</title>
 </svelte:head>
 
-<!-- HERO -->
-<header class="hero" class:ready={heroReady}>
-  <div class="hero-greeting">Hey, I'm</div>
+<Topo />
 
-  <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
-  <img
-    src={photoSrc}
-    alt={profile.name}
-    class="hero-avatar"
-    class:hovered={avatarHovered}
-    on:mouseenter={() => avatarHovered = true}
-    on:mouseleave={() => avatarHovered = false}
-  />
-  {#if avatarHovered}
-    <div class="avatar-tooltip">yes, that's really me</div>
-  {/if}
+<a class="skip" href="#about" on:click={(e) => jump(e, 'about')}>Skip to content</a>
 
-  <h1>{profile.name}</h1>
-  <p class="hero-korean">{profile.koreanName}</p>
+<div class="shell">
+	<!-- LEFT: who I am, always in view on desktop -->
+	<header class="intro">
+		<div class="intro-inner">
+			<div class="topline">
+				<span class="clock" title="My local time">
+					<span class="pulse" aria-hidden="true"></span>
+					{greeting} from New York{localTime ? `, ${localTime}` : ''}
+				</span>
+				<button class="theme" on:click={toggleTheme} aria-label="Switch to {theme === 'dark' ? 'light' : 'dark'} mode">
+					<svg viewBox="0 0 24 24" aria-hidden="true" class:dark={theme === 'dark'}>
+						<circle class="sun" cx="12" cy="12" r="5" />
+						<g class="rays">
+							{#each Array(8) as _, i}
+								<g transform="rotate({i * 45} 12 12)"><line x1="12" y1="1.5" x2="12" y2="4" /></g>
+							{/each}
+						</g>
+						<circle class="bite" cx="17" cy="8" r="5" />
+					</svg>
+				</button>
+			</div>
 
-  <div class="hero-typer">
-    <span class="typer-text">{typedText}</span><span class="typer-cursor" class:blink={showCursor}>|</span>
-  </div>
+			<img class="portrait" src={profile.avatar} alt="Aaron Lindahl" width="88" height="88" />
 
-  <p class="hero-bio">{profile.tagline}</p>
+			<h1>
+				<span class="hi">Hi, I’m</span>
+				{profile.name}
+			</h1>
+			<p class="korean" lang="ko">{profile.koreanName}</p>
 
-  <div class="hero-badges">
-    <span class="hero-badge nyu">NYU Engineering</span>
-    <span class="hero-badge aws">AWS Community Builder</span>
-  </div>
+			<p class="role">
+				<span class="scribble">
+					{profile.role}
+					<svg viewBox="0 0 300 20" preserveAspectRatio="none" aria-hidden="true">
+						<path d="M3 13 C 60 5, 120 17, 180 9 S 270 6, 297 11" />
+					</svg>
+				</span>
+				at {profile.company}
+			</p>
+			<p class="lede">{profile.oneLiner}</p>
+			<a class="building" href="#tabletales" on:click={(e) => jump(e, 'tabletales')}>
+				<span class="building-dot" aria-hidden="true"></span>
+				<span>Now building <strong>TableTales</strong>, an AI Game Master</span>
+				<span aria-hidden="true">→</span>
+			</a>
 
-  <div class="hero-stats">
-    <span class="stat">{profile.followers} followers</span>
-    <span class="stat-sep">&bull;</span>
-    <span class="stat">{profile.connections} connections</span>
-  </div>
+			<nav aria-label="Sections">
+				<ol>
+					{#each sections as s, i}
+						<li>
+							<a href="#{s.id}" on:click={(e) => jump(e, s.id)} class:active={active === s.id} aria-current={active === s.id ? 'true' : undefined}>
+								<span class="idx">0{i + 1}</span>
+								<span class="rule" aria-hidden="true"></span>
+								<span class="label">{s.label}</span>
+							</a>
+						</li>
+					{/each}
+				</ol>
+			</nav>
 
-  <div class="hero-links">
-    <a href={profile.github} target="_blank" rel="noopener" class="link-btn">
-      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
-      {profile.githubHandle}
-    </a>
-    <a href={profile.linkedin} target="_blank" rel="noopener" class="link-btn">
-      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
-      LinkedIn
-    </a>
-    <a href={profile.medium} target="_blank" rel="noopener" class="link-btn">
-      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M13.54 12a6.8 6.8 0 01-6.77 6.82A6.8 6.8 0 010 12a6.8 6.8 0 016.77-6.82A6.8 6.8 0 0113.54 12zm7.42 0c0 3.54-1.51 6.42-3.38 6.42-1.87 0-3.39-2.88-3.39-6.42s1.52-6.42 3.39-6.42 3.38 2.88 3.38 6.42M24 12c0 3.17-.53 5.75-1.19 5.75-.66 0-1.19-2.58-1.19-5.75s.53-5.75 1.19-5.75C23.47 6.25 24 8.83 24 12z"/></svg>
-      Blog
-    </a>
-    <a href={profile.awsCommunity} target="_blank" rel="noopener" class="link-btn link-btn-aws">
-      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6.763 10.036c0 .296.032.535.088.71.064.176.144.368.256.576.04.063.056.127.056.183 0 .08-.048.16-.152.24l-.503.335a.383.383 0 01-.208.072c-.08 0-.16-.04-.239-.112a2.47 2.47 0 01-.287-.374 6.18 6.18 0 01-.248-.471c-.622.734-1.405 1.101-2.347 1.101-.67 0-1.205-.191-1.596-.574-.391-.384-.59-.894-.59-1.533 0-.678.239-1.23.726-1.644.487-.415 1.133-.623 1.955-.623.272 0 .551.024.846.064.296.04.6.104.918.176v-.583c0-.607-.127-1.03-.375-1.277-.255-.248-.686-.367-1.3-.367-.28 0-.568.031-.863.103-.296.072-.583.16-.862.272a2.287 2.287 0 01-.28.104.488.488 0 01-.127.023c-.112 0-.168-.08-.168-.247v-.391c0-.128.016-.224.056-.28a.597.597 0 01.224-.167c.279-.144.614-.264 1.005-.36a4.84 4.84 0 011.246-.151c.95 0 1.644.216 2.091.647.44.43.662 1.085.662 1.963v2.586zm-3.24 1.214c.263 0 .534-.048.822-.144.287-.096.543-.271.758-.51.128-.152.224-.32.272-.512.047-.191.08-.423.08-.694v-.335a6.66 6.66 0 00-.735-.136 6.02 6.02 0 00-.75-.048c-.535 0-.926.104-1.19.32-.263.215-.39.518-.39.917 0 .375.095.655.295.846.191.2.47.296.838.296zm6.41.862c-.144 0-.24-.024-.304-.08-.064-.048-.12-.16-.168-.311L7.586 5.55a1.398 1.398 0 01-.072-.32c0-.128.064-.2.191-.2h.783c.151 0 .255.025.31.08.065.048.113.16.16.312l1.342 5.284 1.245-5.284c.04-.16.088-.264.151-.312a.549.549 0 01.32-.08h.638c.152 0 .256.025.32.08.063.048.12.16.151.312l1.261 5.348 1.381-5.348c.048-.16.104-.264.16-.312a.52.52 0 01.311-.08h.743c.127 0 .2.065.2.2 0 .04-.009.08-.017.128a1.137 1.137 0 01-.056.2l-1.923 6.17c-.048.16-.104.264-.168.312a.549.549 0 01-.312.08h-.687c-.151 0-.255-.024-.32-.08-.063-.056-.119-.16-.15-.32l-1.238-5.148-1.23 5.14c-.04.16-.087.272-.15.328-.064.048-.177.08-.32.08zm10.256.215c-.415 0-.83-.048-1.229-.143-.399-.096-.71-.2-.918-.32-.128-.071-.215-.151-.247-.223a.563.563 0 01-.048-.224v-.407c0-.167.064-.247.183-.247.048 0 .096.008.144.024.048.016.12.048.2.08.271.12.566.215.878.279.319.064.63.096.95.096.502 0 .894-.088 1.165-.264a.86.86 0 00.415-.758.777.777 0 00-.215-.559c-.144-.151-.415-.287-.807-.414l-1.157-.36c-.583-.183-1.014-.454-1.277-.813a1.902 1.902 0 01-.4-1.158c0-.335.073-.63.216-.886.144-.255.335-.479.575-.654.24-.184.51-.32.83-.415.32-.096.655-.136 1.006-.136.175 0 .359.008.535.032.183.024.35.056.518.088.16.04.312.08.455.127.144.048.256.096.336.144a.69.69 0 01.24.2.43.43 0 01.071.263v.375c0 .168-.064.256-.184.256a.83.83 0 01-.303-.096 3.652 3.652 0 00-1.532-.311c-.455 0-.815.071-1.062.223-.248.152-.375.383-.375.71 0 .224.08.416.24.567.159.152.454.304.878.44l1.134.358c.574.184.99.44 1.237.767.247.327.367.702.367 1.117 0 .343-.072.655-.207.926-.144.272-.336.511-.583.703-.248.2-.543.343-.886.447-.36.111-.734.167-1.142.167z"/></svg>
-      AWS
-    </a>
-  </div>
+			<div class="links">
+				<a href={profile.linkedin} target="_blank" rel="noopener" class="pill">
+					<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.45 20.45h-3.55v-5.57c0-1.33-.03-3.04-1.85-3.04-1.85 0-2.14 1.45-2.14 2.94v5.67H9.35V9h3.41v1.56h.05c.48-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.46v6.28zM5.34 7.43a2.06 2.06 0 110-4.12 2.06 2.06 0 010 4.12zM7.12 20.45H3.56V9h3.56v11.45zM22.22 0H1.77C.79 0 0 .77 0 1.73v20.54C0 23.23.79 24 1.77 24h20.45c.98 0 1.78-.77 1.78-1.73V1.73C24 .77 23.2 0 22.22 0z"/></svg>
+					LinkedIn
+				</a>
+				<a href={profile.github} target="_blank" rel="noopener" class="pill">
+					<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.44 9.8 8.2 11.39.6.1.83-.26.83-.58v-2.23c-3.34.73-4.04-1.41-4.04-1.41-.55-1.39-1.33-1.76-1.33-1.76-1.09-.74.08-.73.08-.73 1.2.09 1.84 1.24 1.84 1.24 1.07 1.83 2.8 1.3 3.49 1 .1-.78.42-1.3.76-1.6-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 016 0c2.28-1.55 3.29-1.23 3.29-1.23.66 1.66.24 2.88.12 3.18.77.84 1.23 1.91 1.23 3.22 0 4.61-2.8 5.62-5.48 5.92.43.37.82 1.1.82 2.22v3.29c0 .32.22.7.83.58A12 12 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+					GitHub
+				</a>
+				<a href={profile.medium} target="_blank" rel="noopener" class="pill">
+					<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13.54 12a6.8 6.8 0 01-6.77 6.82A6.8 6.8 0 010 12a6.8 6.8 0 016.77-6.82A6.8 6.8 0 0113.54 12zm7.42 0c0 3.54-1.51 6.42-3.38 6.42-1.87 0-3.39-2.88-3.39-6.42s1.52-6.42 3.39-6.42 3.38 2.88 3.38 6.42M24 12c0 3.17-.53 5.75-1.19 5.75-.66 0-1.19-2.58-1.19-5.75s.53-5.75 1.19-5.75C23.47 6.25 24 8.83 24 12z"/></svg>
+					Medium
+				</a>
+				{#if email}
+					<button class="pill" on:click={copyEmail}>
+						<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18a1 1 0 011 1v12a1 1 0 01-1 1H3a1 1 0 01-1-1V6a1 1 0 011-1zm9 7.2L4 7.3V17h16V7.3l-8 4.9zM5.2 7l6.8 4.1L18.8 7H5.2z"/></svg>
+						{copied ? 'Copied!' : 'Email'}
+					</button>
+				{/if}
+			</div>
+		</div>
+	</header>
 
-  <div class="scroll-hint" class:hidden={!scrollHintVisible}>
-    <span class="scroll-arrow">&#8595;</span>
-    scroll to explore the skill tree
-  </div>
-</header>
+	<!-- RIGHT: the story -->
+	<main>
+		<section id="about" class="block">
+			<h2 class="eyebrow reveal" tabindex="-1">About</h2>
+			<div class="prose reveal">
+				{#each about as para}
+					<p>{para}</p>
+				{/each}
+			</div>
+			<div class="now reveal">
+				<div class="now-item">
+					<span class="now-k">Day job</span>
+					<span class="now-v">AI and cloud security lead at Capital One</span>
+				</div>
+				<div class="now-item">
+					<span class="now-k">Building</span>
+					<span class="now-v">TableTales, an AI Game Master</span>
+				</div>
+				<div class="now-item">
+					<span class="now-k">Studying</span>
+					<span class="now-v">M.Eng Cybersecurity, NYU Tandon</span>
+				</div>
+			</div>
+		</section>
 
-<!-- SOCIAL EMBEDS -->
-<section class="social-embeds">
-  <a href={profile.github} target="_blank" rel="noopener" class="embed-card">
-    <div class="embed-icon github-icon">
-      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
-    </div>
-    <div class="embed-content">
-      <span class="embed-platform">GitHub</span>
-      <span class="embed-handle">@{profile.githubHandle}</span>
-      <span class="embed-desc">Security tools, AI dungeon masters, and cloud projects</span>
-    </div>
-    <span class="embed-arrow">&rarr;</span>
-  </a>
-  <a href={profile.medium} target="_blank" rel="noopener" class="embed-card">
-    <div class="embed-icon medium-icon">
-      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M13.54 12a6.8 6.8 0 01-6.77 6.82A6.8 6.8 0 010 12a6.8 6.8 0 016.77-6.82A6.8 6.8 0 0113.54 12zm7.42 0c0 3.54-1.51 6.42-3.38 6.42-1.87 0-3.39-2.88-3.39-6.42s1.52-6.42 3.39-6.42 3.38 2.88 3.38 6.42M24 12c0 3.17-.53 5.75-1.19 5.75-.66 0-1.19-2.58-1.19-5.75s.53-5.75 1.19-5.75C23.47 6.25 24 8.83 24 12z"/></svg>
-    </div>
-    <div class="embed-content">
-      <span class="embed-platform">Medium</span>
-      <span class="embed-handle">Blog</span>
-      <span class="embed-desc">Writing about cloud security, threat modeling, and engineering</span>
-    </div>
-    <span class="embed-arrow">&rarr;</span>
-  </a>
-  <a href={profile.linkedin} target="_blank" rel="noopener" class="embed-card">
-    <div class="embed-icon linkedin-icon">
-      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
-    </div>
-    <div class="embed-content">
-      <span class="embed-platform">LinkedIn</span>
-      <span class="embed-handle">{profile.name}</span>
-      <span class="embed-desc">{profile.followers} followers &middot; {profile.connections} connections</span>
-    </div>
-    <span class="embed-arrow">&rarr;</span>
-  </a>
-</section>
+		<section id="tabletales" class="block">
+			<h2 class="eyebrow reveal" tabindex="-1">What I am building</h2>
+			<div class="reveal"><TableTales /></div>
+		</section>
 
-<!-- HUB NODE -->
-<div class="skill-tree-hub">
-  <div class="hub-spine"></div>
-  <div class="hub-node" class:visible={hubVisible}>
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
-  </div>
-  <div class="hub-labels" class:visible={hubVisible}>
-    {#each branchOrder as type}
-      <span class="hub-label {branchConfig[type].color}">{branchConfig[type].label}</span>
-    {/each}
-  </div>
+		<section id="experience" class="block">
+			<h2 class="eyebrow reveal" tabindex="-1">Experience</h2>
+			<ol class="jobs">
+				{#each experience as job}
+					<li class="job reveal" class:current={job.current} use:spotlight>
+						<div class="job-when">
+							<span>{job.dates}</span>
+						</div>
+						<div class="job-body">
+							<h3>
+								{job.title}
+								<span class="at">·</span>
+								<span class="company">{job.company}</span>
+								{#if job.current}<span class="now-badge">Now</span>{/if}
+							</h3>
+							{#if job.team}<p class="team">{job.team}</p>{/if}
+							<ul>
+								{#each job.points as pt}
+									<li>{pt}</li>
+								{/each}
+							</ul>
+							<div class="tags">
+								{#each job.tags as t}<span class="tag">{t}</span>{/each}
+							</div>
+						</div>
+					</li>
+				{/each}
+			</ol>
+		</section>
+
+		<section id="work" class="block">
+			<h2 class="eyebrow reveal" tabindex="-1">Selected work</h2>
+			<p class="section-note reveal">Things I built on my own time, mostly to learn something the hard way.</p>
+			<div class="features">
+				{#each featured as p}
+					<article class="feature reveal" use:spotlight>
+						<div class="feature-art"><Art kind={p.art} /></div>
+						<div class="feature-body">
+							<p class="kicker">{p.kicker}</p>
+							<h3><a href={p.url} target="_blank" rel="noopener" class="stretch">{p.name}</a></h3>
+							<p class="blurb">{p.blurb}</p>
+							<ul class="stats">
+								{#each p.stats as s}<li>{s}</li>{/each}
+							</ul>
+							<div class="feature-foot">
+								<div class="tags">
+									{#each p.tags as t}<span class="tag">{t}</span>{/each}
+								</div>
+								{#if p.post}
+									<a class="read" href={p.post} target="_blank" rel="noopener">Read the write-up</a>
+								{/if}
+							</div>
+						</div>
+					</article>
+				{/each}
+			</div>
+
+			<h3 class="sub reveal">More from the workbench</h3>
+			<div class="grid">
+				{#each projects as p}
+					<a class="mini reveal" href={p.url} target="_blank" rel="noopener" use:spotlight>
+						<span class="mini-name">{p.name}<span class="arrow" aria-hidden="true">↗</span></span>
+						<span class="mini-blurb">{p.blurb}</span>
+						<span class="tags">{#each p.tags as t}<span class="tag">{t}</span>{/each}</span>
+					</a>
+				{/each}
+			</div>
+		</section>
+
+		<section id="writing" class="block">
+			<h2 class="eyebrow reveal" tabindex="-1">Writing</h2>
+			<p class="section-note reveal">I write on Medium about cloud security, usually after I have broken something and figured out why.</p>
+			<ul class="posts">
+				{#each writing as w}
+					<li class="reveal">
+						<a href={w.url} target="_blank" rel="noopener">
+							<span class="post-topic">{w.topic}</span>
+							<span class="post-title">{w.title}</span>
+							{#if w.date}<span class="post-date">{w.date}</span>{/if}
+						</a>
+					</li>
+				{/each}
+			</ul>
+			<a class="series reveal" href={nessusSeries.url} target="_blank" rel="noopener" use:spotlight>
+				<span class="series-count">{nessusSeries.count}</span>
+				<span>
+					<span class="series-title">{nessusSeries.title}</span>
+					<span class="series-blurb">{nessusSeries.blurb}</span>
+				</span>
+			</a>
+		</section>
+
+		<section id="credentials" class="block">
+			<h2 class="eyebrow reveal" tabindex="-1">Credentials</h2>
+			<div class="certs reveal">
+				{#each certs as c}
+					<span class="cert" class:gold={c.tier === 'gold'}>
+						<span class="cert-name">{c.name}</span>
+						<span class="cert-org">{c.org}</span>
+					</span>
+				{/each}
+			</div>
+			<div class="two-col">
+				<div class="reveal">
+					<h3 class="sub">Education</h3>
+					<ul class="edu">
+						{#each education as e}
+							<li>
+								<span class="edu-degree">{e.degree}</span>
+								<span class="edu-meta">{e.school} · {e.year}</span>
+							</li>
+						{/each}
+					</ul>
+					<h3 class="sub">Community</h3>
+					<ul class="edu">
+						{#each affiliations as a}<li><span class="edu-degree">{a}</span></li>{/each}
+					</ul>
+				</div>
+				<div class="reveal">
+					<h3 class="sub">Toolbox</h3>
+					{#each toolbox as g}
+						<div class="tool-row">
+							<span class="tool-k">{g.label}</span>
+							<span class="tool-v">{g.items.join(' · ')}</span>
+						</div>
+					{/each}
+				</div>
+			</div>
+		</section>
+
+		<section id="side-quests" class="block">
+			<h2 class="eyebrow reveal" tabindex="-1">Side quests</h2>
+			<p class="section-note reveal">When I am not on call, I am usually a Dungeon Master. Some of that leaks into code.</p>
+			<div class="quests">
+				{#each sideQuests as q, i}
+					<a class="quest reveal" href={q.url} target="_blank" rel="noopener" style="--tilt:{i % 2 ? 1.2 : -1.2}deg">
+						<span class="glyph" aria-hidden="true">
+							{#if q.glyph === 'book'}
+								<svg viewBox="0 0 24 24"><path d="M4 5a2 2 0 012-2h13v16H6a2 2 0 00-2 2V5z"/><path d="M4 19a2 2 0 012-2h13"/><path d="M9 8h6"/></svg>
+							{:else if q.glyph === 'ring'}
+								<svg viewBox="0 0 24 24"><ellipse cx="12" cy="13" rx="8" ry="6"/><ellipse cx="12" cy="13" rx="5" ry="3.4"/><path d="M9 6l3-3 3 3"/></svg>
+							{:else if q.glyph === 'cube'}
+								<svg viewBox="0 0 24 24"><path d="M12 2l9 5v10l-9 5-9-5V7z"/><path d="M12 12l9-5M12 12v10M12 12L3 7"/></svg>
+							{:else if q.glyph === 'disc'}
+								<svg viewBox="0 0 24 24"><ellipse cx="12" cy="10" rx="9" ry="4"/><path d="M3 10v2c0 2.2 4 4 9 4s9-1.8 9-4v-2"/><path d="M8 19l-1 3M16 19l1 3"/></svg>
+							{:else}
+								<svg viewBox="0 0 24 24"><path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z"/><path d="M9 3v15M15 6v15"/></svg>
+							{/if}
+						</span>
+						<span class="quest-name">{q.name}</span>
+						<span class="quest-blurb">{q.blurb}</span>
+					</a>
+				{/each}
+			</div>
+		</section>
+
+		<footer class="foot">
+			<div class="foot-cta reveal">
+				<h2>Let’s talk.</h2>
+				<p>I am always happy to chat about AI security, cloud architecture, zero trust, or your next campaign’s villain. If you want to see what an AI Game Master can do, <a href="https://app.tabletalesai.com/" target="_blank" rel="noopener">pull up a chair at TableTales</a>.</p>
+				<div class="links">
+					<a class="pill solid" href={profile.linkedin} target="_blank" rel="noopener">Message me on LinkedIn</a>
+					{#if email}<a class="pill" href="mailto:{email}">{email}</a>{/if}
+				</div>
+			</div>
+			<Dice />
+			<p class="colophon">
+				Set in Fraunces and Inter. The map behind this page is generated live, and it moves when you do.
+				Built with SvelteKit, hosted on GitHub Pages.
+			</p>
+		</footer>
+	</main>
 </div>
-
-<!-- SKILL TREE -->
-<section class="skill-tree" bind:this={treeEl}>
-  <svg class="tree-connectors" bind:this={svgEl}></svg>
-
-  <div class="tree-columns">
-    {#each branchOrder as type}
-      {@const items = branches[type]}
-      {@const config = branchConfig[type]}
-      <div class="tree-branch branch-{config.color}" class:revealed={branchesRevealed[type]}>
-        <div class="branch-header">
-          <div class="branch-dot {config.color}"></div>
-          <h3 class="branch-title">{config.label}</h3>
-          <span class="branch-count">{items.length}</span>
-        </div>
-
-        {#each items as item, i}
-          {@const key = nodeKey(type, i)}
-          <div
-            class="tree-node {type}"
-            class:visible={visible[key]}
-            bind:this={nodeEls[key]}
-            data-key={key}
-          >
-            <div class="node-connector-dot {config.color}"></div>
-            <!-- svelte-ignore a11y-click-events-have-key-events -->
-            <div class="node-card" class:expanded={expanded[key]} on:click={() => toggleExpand(key)} role="button" tabindex="0">
-              {#if item.current}
-                <div class="node-current">Active Role</div>
-              {/if}
-              <span class="node-date">{item.date}</span>
-              <span class="node-type {config.color}">{getTypeLabel(item.type)}</span>
-              {#if item.isNew}
-                <span class="node-new">NEW</span>
-              {/if}
-              <h3>
-                {#if item.url}
-                  <a href={item.url} target="_blank" rel="noopener" class="node-title-link" on:click|stopPropagation>{item.title}</a>
-                {:else}
-                  {item.title}
-                {/if}
-              </h3>
-              <p class="node-subtitle">{item.subtitle}</p>
-              {#if !expanded[key]}
-                <p class="click-hint">{getClickHint(item.type)}</p>
-              {/if}
-              <div class="node-detail">{item.detail}</div>
-              {#if item.tags && item.tags.length > 0}
-                <div class="node-tags">
-                  {#each item.tags as tag}
-                    <span class="node-tag">{tag}</span>
-                  {/each}
-                </div>
-              {/if}
-              {#if item.stars}
-                <div class="node-stars">
-                  <svg viewBox="0 0 16 16"><path d="M8 .25a.75.75 0 01.673.418l1.882 3.815 4.21.612a.75.75 0 01.416 1.279l-3.046 2.97.719 4.192a.75.75 0 01-1.088.791L8 12.347l-3.766 1.98a.75.75 0 01-1.088-.79l.72-4.194L.818 6.374a.75.75 0 01.416-1.28l4.21-.611L7.327.668A.75.75 0 018 .25z"/></svg>
-                  {item.stars} {item.stars === 1 ? 'star' : 'stars'}
-                </div>
-              {/if}
-              {#if item.url && expanded[key]}
-                <a href={item.url} target="_blank" rel="noopener" class="node-repo-link" on:click|stopPropagation>
-                  View on GitHub &rarr;
-                </a>
-              {/if}
-            </div>
-          </div>
-        {/each}
-
-        <div class="branch-end {config.color}">
-          <div class="branch-end-dot"></div>
-        </div>
-      </div>
-    {/each}
-  </div>
-</section>
-
-<!-- SKILLS -->
-<section class="skills-section">
-  <div class="skills-header">
-    <h2>Technical Arsenal</h2>
-    <p class="skills-sub">things I break and build with</p>
-  </div>
-  <div class="skills-grid">
-    {#each skills as skill}
-      <div class="skill-item">
-        <h4>{skill.category}</h4>
-        <p>{skill.items}</p>
-      </div>
-    {/each}
-  </div>
-</section>
-
-<!-- MINI-GAME -->
-<SocGame />
-
-<!-- TIMELINE END -->
-<div class="timeline-end">
-  <p>
-    {#if expandedCount >= 5}
-      You actually read all that? Hire me.
-    {:else if expandedCount >= 2}
-      Curious one, aren't you?
-    {:else}
-      The journey continues...
-    {/if}
-  </p>
-</div>
-
-<!-- FOOTER -->
-<footer class="footer">
-  <div class="footer-cta">
-    <h4>Let's build something secure.</h4>
-  </div>
-  <div class="footer-links">
-    <a href={profile.github} target="_blank" rel="noopener">GitHub</a>
-    <a href={profile.linkedin} target="_blank" rel="noopener">LinkedIn</a>
-    <a href={profile.linkedin} target="_blank" rel="noopener" class="footer-email">Get in touch</a>
-  </div>
-  <p class="footer-colophon">Built with Svelte &middot; Designed with spite and coffee</p>
-</footer>
 
 <style>
-  /* ─── HERO ─── */
-  .hero {
-    text-align: center;
-    padding: 4rem 2rem 2rem;
-    position: relative;
-    opacity: 0;
-    transform: translateY(20px);
-    transition: opacity 0.8s ease, transform 0.8s ease;
-  }
-
-  .hero.ready {
-    opacity: 1;
-    transform: translateY(0);
-  }
-
-  .hero-greeting {
-    font-family: var(--mono);
-    font-size: 0.85rem;
-    color: var(--text-dim);
-    margin-bottom: 1.25rem;
-    letter-spacing: 0.02em;
-  }
-
-  .hero-avatar {
-    width: 120px;
-    height: 120px;
-    border-radius: 50%;
-    object-fit: cover;
-    border: 3px solid var(--spine);
-    margin-bottom: 1.5rem;
-    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    cursor: pointer;
-  }
-
-  .hero-avatar.hovered {
-    border-color: var(--green);
-    transform: scale(1.08) rotate(2deg);
-    box-shadow: 0 0 30px rgba(34, 197, 94, 0.2);
-  }
-
-  .avatar-tooltip {
-    font-family: var(--mono);
-    font-size: 0.6rem;
-    color: var(--text-dim);
-    background: var(--bg-card);
-    border: 1px solid #333;
-    padding: 0.3rem 0.8rem;
-    border-radius: 20px;
-    position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
-    margin-top: -0.75rem;
-    white-space: nowrap;
-    animation: tooltipIn 0.2s ease;
-    z-index: 10;
-  }
-
-  @keyframes tooltipIn {
-    from { opacity: 0; transform: translateX(-50%) translateY(4px); }
-    to { opacity: 1; transform: translateX(-50%) translateY(0); }
-  }
-
-  .hero h1 {
-    font-size: clamp(2.5rem, 5vw, 3.5rem);
-    font-weight: 800;
-    letter-spacing: -0.03em;
-    margin-bottom: 0.25rem;
-  }
-
-  .hero-korean {
-    font-size: 0.9rem;
-    color: var(--text-dim);
-    margin-bottom: 1rem;
-  }
-
-  .hero-typer {
-    font-family: var(--mono);
-    font-size: 0.9rem;
-    color: var(--green);
-    height: 1.5rem;
-    margin-bottom: 0.75rem;
-  }
-
-  .typer-cursor { color: var(--green); opacity: 0; transition: opacity 0.1s; }
-  .typer-cursor.blink { opacity: 1; }
-
-  .hero-bio {
-    font-size: 0.9rem;
-    color: var(--text-dim);
-    max-width: 480px;
-    margin: 0 auto 1rem;
-    font-style: italic;
-    line-height: 1.6;
-  }
-
-  .hero-badges {
-    display: flex;
-    justify-content: center;
-    gap: 0.6rem;
-    margin-bottom: 1.25rem;
-    flex-wrap: wrap;
-  }
-
-  .hero-badge {
-    font-family: var(--mono);
-    font-size: 0.6rem;
-    font-weight: 600;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    padding: 0.25rem 0.7rem;
-    border-radius: 50px;
-  }
-
-  .hero-badge.nyu {
-    background: rgba(87, 6, 140, 0.15);
-    color: #b47adf;
-    border: 1px solid rgba(87, 6, 140, 0.25);
-  }
-
-  .hero-badge.aws {
-    background: rgba(255, 153, 0, 0.1);
-    color: #ff9900;
-    border: 1px solid rgba(255, 153, 0, 0.2);
-  }
-
-  .hero-stats {
-    display: flex;
-    justify-content: center;
-    gap: 0.75rem;
-    font-family: var(--mono);
-    font-size: 0.7rem;
-    color: var(--text-dim);
-    margin-bottom: 1.5rem;
-  }
-
-  .stat-sep { color: var(--spine); }
-
-  .hero-links {
-    display: flex;
-    justify-content: center;
-    gap: 1rem;
-    flex-wrap: wrap;
-    margin-bottom: 2rem;
-  }
-
-  .link-btn {
-    font-family: var(--mono);
-    font-size: 0.75rem;
-    color: var(--text-dim);
-    text-decoration: none;
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    padding: 0.5rem 1rem;
-    border: 1px solid #333;
-    border-radius: 8px;
-    transition: all 0.2s;
-    background: transparent;
-  }
-
-  .link-btn:hover {
-    color: var(--text);
-    border-color: var(--green);
-    background: rgba(34, 197, 94, 0.05);
-  }
-
-  .link-btn :global(svg) { width: 14px; height: 14px; }
-
-  .link-btn-aws:hover {
-    border-color: #ff9900 !important;
-    background: rgba(255, 153, 0, 0.05) !important;
-  }
-
-  .scroll-hint {
-    font-family: var(--mono);
-    font-size: 0.65rem;
-    color: var(--text-dim);
-    letter-spacing: 0.1em;
-    opacity: 1;
-    transition: opacity 0.5s;
-  }
-
-  .scroll-hint.hidden { opacity: 0; pointer-events: none; }
-
-  .scroll-arrow {
-    display: block;
-    animation: bounce 2s ease infinite;
-    margin-bottom: 0.25rem;
-    font-size: 1rem;
-  }
-
-  @keyframes bounce {
-    0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
-    40% { transform: translateY(6px); }
-    60% { transform: translateY(3px); }
-  }
-
-  /* ─── SOCIAL EMBEDS ─── */
-  .social-embeds {
-    display: flex;
-    justify-content: center;
-    gap: 0.75rem;
-    max-width: 900px;
-    margin: 0 auto;
-    padding: 1rem 1.5rem 0;
-    flex-wrap: wrap;
-  }
-
-  .embed-card {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    background: var(--bg-card);
-    border: 1px solid #262626;
-    border-radius: 10px;
-    padding: 0.7rem 1rem;
-    text-decoration: none;
-    color: var(--text);
-    transition: all 0.25s;
-    flex: 1;
-    min-width: 220px;
-    max-width: 280px;
-  }
-
-  .embed-card:hover {
-    background: var(--bg-card-hover);
-    border-color: #444;
-    transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
-  }
-
-  .embed-icon {
-    width: 36px;
-    height: 36px;
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-  }
-
-  .embed-icon :global(svg) { width: 18px; height: 18px; }
-
-  .github-icon { background: rgba(255, 255, 255, 0.08); color: var(--text); }
-  .medium-icon { background: rgba(255, 255, 255, 0.08); color: var(--text); }
-  .linkedin-icon { background: rgba(10, 102, 194, 0.15); color: #0a66c2; }
-
-  .embed-card:hover .github-icon { background: rgba(255, 255, 255, 0.12); }
-  .embed-card:hover .medium-icon { background: rgba(255, 255, 255, 0.12); }
-  .embed-card:hover .linkedin-icon { background: rgba(10, 102, 194, 0.2); }
-
-  .embed-content {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-    flex: 1;
-  }
-
-  .embed-platform {
-    font-family: var(--mono);
-    font-size: 0.6rem;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--text-mid);
-  }
-
-  .embed-handle {
-    font-size: 0.8rem;
-    font-weight: 600;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .embed-desc {
-    font-size: 0.65rem;
-    color: var(--text-dim);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    line-height: 1.4;
-  }
-
-  .embed-arrow {
-    font-size: 0.9rem;
-    color: var(--text-dim);
-    transition: transform 0.2s, color 0.2s;
-    flex-shrink: 0;
-  }
-
-  .embed-card:hover .embed-arrow {
-    transform: translateX(3px);
-    color: var(--text);
-  }
-
-  /* ─── HUB NODE ─── */
-  .skill-tree-hub {
-    text-align: center;
-    position: relative;
-    padding: 0 0 1.5rem;
-  }
-
-  .hub-spine {
-    width: 3px;
-    height: 60px;
-    background: linear-gradient(to bottom, transparent, var(--spine));
-    margin: 0 auto;
-  }
-
-  .hub-node {
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    background: var(--bg-card);
-    border: 2px solid var(--spine);
-    margin: 0 auto;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--text-dim);
-    opacity: 0;
-    transform: scale(0.5);
-    transition: all 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    position: relative;
-    z-index: 3;
-  }
-
-  .hub-node.visible {
-    opacity: 1;
-    transform: scale(1);
-    box-shadow: 0 0 30px rgba(255, 255, 255, 0.06);
-    border-color: var(--text-dim);
-  }
-
-  .hub-node :global(svg) { width: 22px; height: 22px; }
-
-  .hub-labels {
-    display: flex;
-    justify-content: center;
-    gap: 2rem;
-    margin-top: 1rem;
-    opacity: 0;
-    transition: opacity 0.5s ease 0.3s;
-  }
-
-  .hub-labels.visible { opacity: 1; }
-
-  .hub-label {
-    font-family: var(--mono);
-    font-size: 0.6rem;
-    font-weight: 600;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-  }
-
-  .hub-label.green { color: var(--green); }
-  .hub-label.blue { color: var(--blue); }
-  .hub-label.purple { color: var(--purple); }
-
-  /* ─── SKILL TREE ─── */
-  .skill-tree {
-    position: relative;
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 1rem 1rem 2rem;
-  }
-
-  .tree-connectors {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    pointer-events: none;
-    z-index: 1;
-  }
-
-  .tree-columns {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 1.5rem;
-    position: relative;
-    z-index: 2;
-  }
-
-  /* ─── BRANCH ─── */
-  .tree-branch {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    opacity: 0;
-    transform: translateY(20px);
-    transition: opacity 0.6s ease, transform 0.6s ease;
-  }
-
-  .tree-branch.revealed {
-    opacity: 1;
-    transform: translateY(0);
-  }
-
-  .branch-header {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-bottom: 1.5rem;
-    position: relative;
-  }
-
-  .branch-dot {
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    flex-shrink: 0;
-  }
-
-  .branch-dot.green { background: var(--green); box-shadow: 0 0 12px rgba(34, 197, 94, 0.4); }
-  .branch-dot.blue { background: var(--blue); box-shadow: 0 0 12px rgba(59, 130, 246, 0.4); }
-  .branch-dot.purple { background: var(--purple); box-shadow: 0 0 12px rgba(168, 85, 247, 0.4); }
-
-  .branch-title {
-    font-family: var(--mono);
-    font-size: 0.7rem;
-    font-weight: 600;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--text-mid);
-  }
-
-  .branch-count {
-    font-family: var(--mono);
-    font-size: 0.55rem;
-    color: var(--text-dim);
-    background: rgba(255, 255, 255, 0.05);
-    padding: 0.15rem 0.4rem;
-    border-radius: 50px;
-  }
-
-  .branch-end {
-    margin-top: 1rem;
-    display: flex;
-    justify-content: center;
-  }
-
-  .branch-end-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--spine);
-    opacity: 0.4;
-    animation: endPulse 3s ease infinite;
-  }
-
-  .branch-end.green .branch-end-dot { background: var(--green); }
-  .branch-end.blue .branch-end-dot { background: var(--blue); }
-  .branch-end.purple .branch-end-dot { background: var(--purple); }
-
-  @keyframes endPulse {
-    0%, 100% { opacity: 0.4; transform: scale(1); }
-    50% { opacity: 0.15; transform: scale(0.7); }
-  }
-
-  /* ─── TREE NODE ─── */
-  .tree-node {
-    width: 100%;
-    max-width: 340px;
-    margin-bottom: 1.25rem;
-    position: relative;
-    opacity: 0;
-    transition: opacity 0.6s ease, transform 0.6s ease;
-  }
-
-  .tree-node.job { transform: translateX(-30px); }
-  .tree-node.project { transform: translateY(20px); }
-  .tree-node.dnd { transform: translateX(30px); }
-
-  .tree-node.visible {
-    opacity: 1;
-    transform: translateX(0) translateY(0);
-  }
-
-  .node-connector-dot {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    margin: 0 auto 0.5rem;
-    transition: transform 0.3s, box-shadow 0.3s;
-  }
-
-  .node-connector-dot.green { background: var(--green); box-shadow: 0 0 8px rgba(34, 197, 94, 0.3); }
-  .node-connector-dot.blue { background: var(--blue); box-shadow: 0 0 8px rgba(59, 130, 246, 0.3); }
-  .node-connector-dot.purple { background: var(--purple); box-shadow: 0 0 8px rgba(168, 85, 247, 0.3); }
-
-  .tree-node:hover .node-connector-dot {
-    transform: scale(1.5);
-  }
-
-  .tree-node:hover .node-connector-dot.green { box-shadow: 0 0 16px rgba(34, 197, 94, 0.5); }
-  .tree-node:hover .node-connector-dot.blue { box-shadow: 0 0 16px rgba(59, 130, 246, 0.5); }
-  .tree-node:hover .node-connector-dot.purple { box-shadow: 0 0 16px rgba(168, 85, 247, 0.5); }
-
-  /* ─── CARD ─── */
-  .node-card {
-    background: var(--bg-card);
-    border: 1px solid #262626;
-    border-radius: 12px;
-    padding: 1.25rem;
-    transition: all 0.3s;
-    cursor: pointer;
-    position: relative;
-    overflow: hidden;
-    text-align: left;
-  }
-
-  .node-card::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 2px;
-    opacity: 0;
-    transition: opacity 0.3s;
-  }
-
-  .node-card:hover {
-    background: var(--bg-card-hover);
-    border-color: #333;
-    transform: translateY(-3px);
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
-  }
-
-  .node-card:hover::before { opacity: 1; }
-
-  .tree-node.job .node-card::before { background: linear-gradient(90deg, var(--green), transparent); }
-  .tree-node.project .node-card::before { background: linear-gradient(90deg, var(--blue), transparent); }
-  .tree-node.dnd .node-card::before { background: linear-gradient(90deg, var(--purple), transparent); }
-
-  .node-date {
-    font-family: var(--mono);
-    font-size: 0.65rem;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--text-dim);
-    margin-bottom: 0.5rem;
-    display: block;
-  }
-
-  .node-type {
-    font-family: var(--mono);
-    font-size: 0.55rem;
-    font-weight: 600;
-    letter-spacing: 0.15em;
-    text-transform: uppercase;
-    padding: 0.2rem 0.6rem;
-    border-radius: 50px;
-    display: inline-block;
-    margin-bottom: 0.75rem;
-  }
-
-  .node-type.green { background: var(--green-dim); color: var(--green); }
-  .node-type.blue { background: var(--blue-dim); color: var(--blue); }
-  .node-type.purple { background: var(--purple-dim); color: var(--purple); }
-
-  .node-new {
-    font-family: var(--mono);
-    font-size: 0.5rem;
-    font-weight: 700;
-    letter-spacing: 0.15em;
-    padding: 0.15rem 0.5rem;
-    border-radius: 50px;
-    background: rgba(249, 115, 22, 0.15);
-    color: #f97316;
-    margin-left: 0.5rem;
-    animation: newPulse 2s ease infinite;
-  }
-
-  @keyframes newPulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.6; }
-  }
-
-  .node-card h3 {
-    font-size: 1.1rem;
-    font-weight: 700;
-    margin-bottom: 0.25rem;
-    letter-spacing: -0.01em;
-  }
-
-  .node-title-link {
-    color: inherit;
-    text-decoration: none;
-    transition: color 0.2s;
-  }
-
-  .node-title-link:hover { color: var(--blue); }
-
-  .node-subtitle {
-    font-size: 0.8rem;
-    color: var(--text-mid);
-    margin-bottom: 0.25rem;
-  }
-
-  .click-hint {
-    font-family: var(--mono);
-    font-size: 0.6rem;
-    color: var(--text-dim);
-    opacity: 0;
-    transition: opacity 0.3s;
-    margin-top: 0.25rem;
-    letter-spacing: 0.03em;
-  }
-
-  .node-card:hover .click-hint { opacity: 0.7; }
-
-  .node-detail {
-    font-size: 0.8rem;
-    color: var(--text-dim);
-    line-height: 1.7;
-    max-height: 0;
-    overflow: hidden;
-    transition: max-height 0.5s ease, opacity 0.3s;
-    opacity: 0;
-  }
-
-  .node-card.expanded .node-detail {
-    max-height: 200px;
-    opacity: 1;
-    margin-top: 0.75rem;
-  }
-
-  .node-tags {
-    display: flex;
-    gap: 0.35rem;
-    flex-wrap: wrap;
-    margin-top: 0.75rem;
-  }
-
-  .node-tag {
-    font-family: var(--mono);
-    font-size: 0.55rem;
-    padding: 0.15rem 0.4rem;
-    border-radius: 4px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    color: var(--text-dim);
-    transition: all 0.2s;
-  }
-
-  .node-card:hover .node-tag,
-  .node-card.expanded .node-tag {
-    border-color: rgba(255, 255, 255, 0.15);
-    color: var(--text-mid);
-  }
-
-  .node-stars {
-    display: flex;
-    align-items: center;
-    gap: 0.3rem;
-    font-family: var(--mono);
-    font-size: 0.65rem;
-    color: var(--text-dim);
-    margin-top: 0.5rem;
-  }
-
-  .node-stars :global(svg) { width: 12px; height: 12px; fill: #f59e0b; }
-
-  .node-repo-link {
-    display: inline-block;
-    font-family: var(--mono);
-    font-size: 0.65rem;
-    color: var(--blue);
-    text-decoration: none;
-    margin-top: 0.75rem;
-    padding: 0.3rem 0.6rem;
-    border: 1px solid rgba(59, 130, 246, 0.3);
-    border-radius: 6px;
-    transition: all 0.2s;
-  }
-
-  .node-repo-link:hover {
-    background: rgba(59, 130, 246, 0.1);
-    border-color: var(--blue);
-  }
-
-  .node-current {
-    font-family: var(--mono);
-    font-size: 0.55rem;
-    font-weight: 600;
-    letter-spacing: 0.15em;
-    text-transform: uppercase;
-    color: var(--green);
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    margin-bottom: 0.5rem;
-  }
-
-  .node-current::before {
-    content: '';
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--green);
-    animation: pulse 2s ease infinite;
-  }
-
-  @keyframes pulse {
-    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4); }
-    50% { opacity: 0.6; box-shadow: 0 0 0 6px rgba(34, 197, 94, 0); }
-  }
-
-  /* ─── SKILLS ─── */
-  .skills-section {
-    max-width: 1000px;
-    margin: 2rem auto;
-    padding: 0 2rem;
-  }
-
-  .skills-header {
-    text-align: center;
-    margin-bottom: 2rem;
-    position: relative;
-  }
-
-  .skills-header h2 {
-    font-size: 1.5rem;
-    font-weight: 700;
-    letter-spacing: -0.02em;
-  }
-
-  .skills-sub {
-    font-family: var(--mono);
-    font-size: 0.7rem;
-    color: var(--text-dim);
-    margin-top: 0.25rem;
-    letter-spacing: 0.03em;
-  }
-
-  .skills-header::before,
-  .skills-header::after {
-    content: '';
-    position: absolute;
-    top: 30%;
-    width: 60px;
-    height: 1px;
-    background: var(--spine);
-  }
-  .skills-header::before { right: calc(50% + 8rem); }
-  .skills-header::after { left: calc(50% + 8rem); }
-
-  .skills-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 1rem;
-  }
-
-  .skill-item {
-    background: var(--bg-card);
-    border: 1px solid #262626;
-    border-radius: 10px;
-    padding: 1.25rem;
-    text-align: center;
-    transition: all 0.3s;
-  }
-
-  .skill-item:hover {
-    background: var(--bg-card-hover);
-    border-color: #333;
-    transform: translateY(-3px);
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
-  }
-
-  .skill-item h4 {
-    font-family: var(--mono);
-    font-size: 0.6rem;
-    font-weight: 600;
-    letter-spacing: 0.15em;
-    text-transform: uppercase;
-    color: var(--blue);
-    margin-bottom: 0.5rem;
-  }
-
-  .skill-item p {
-    font-size: 0.85rem;
-    color: var(--text-mid);
-    line-height: 1.5;
-  }
-
-  /* ─── TIMELINE END ─── */
-  .timeline-end {
-    text-align: center;
-    padding: 3rem 2rem 1rem;
-  }
-
-  .timeline-end p {
-    font-family: var(--mono);
-    font-size: 0.75rem;
-    color: var(--text-dim);
-    letter-spacing: 0.05em;
-    transition: all 0.3s;
-  }
-
-  /* ─── FOOTER ─── */
-  .footer {
-    text-align: center;
-    padding: 3rem 2rem;
-    border-top: 1px solid #1a1a1a;
-    margin-top: 2rem;
-  }
-
-  .footer-cta h4 {
-    font-size: 1.5rem;
-    font-weight: 700;
-    margin-bottom: 0.5rem;
-    letter-spacing: -0.02em;
-  }
-
-  .footer-cta p {
-    font-size: 0.85rem;
-    color: var(--text-mid);
-    margin-bottom: 1.5rem;
-  }
-
-  .footer-links {
-    display: flex;
-    justify-content: center;
-    gap: 1rem;
-    margin-bottom: 2rem;
-  }
-
-  .footer-links a {
-    font-family: var(--mono);
-    font-size: 0.75rem;
-    color: var(--text-dim);
-    text-decoration: none;
-    padding: 0.5rem 1rem;
-    border: 1px solid #333;
-    border-radius: 8px;
-    transition: all 0.2s;
-  }
-
-  .footer-links a:hover {
-    color: var(--text);
-    border-color: var(--green);
-  }
-
-  .footer-email {
-    color: var(--green) !important;
-    border-color: rgba(34, 197, 94, 0.3) !important;
-  }
-
-  .footer-email:hover {
-    background: rgba(34, 197, 94, 0.1) !important;
-  }
-
-  .footer-colophon {
-    font-family: var(--mono);
-    font-size: 0.6rem;
-    color: #444;
-    letter-spacing: 0.05em;
-  }
-
-  /* ─── RESPONSIVE ─── */
-  @media (max-width: 900px) {
-    .tree-columns {
-      grid-template-columns: 1fr;
-      gap: 2rem;
-    }
-
-    .tree-branch {
-      padding: 0 1rem;
-    }
-
-    .tree-node {
-      max-width: 100%;
-    }
-
-    .tree-node.job,
-    .tree-node.project,
-    .tree-node.dnd {
-      transform: translateY(20px);
-    }
-
-    .tree-connectors { display: none; }
-
-    .social-embeds { flex-direction: column; align-items: center; }
-    .embed-card { max-width: 100%; min-width: 0; }
-
-    .hub-labels { gap: 1rem; font-size: 0.5rem; }
-
-    .skills-header::before, .skills-header::after { display: none; }
-  }
-
-  @media (max-width: 480px) {
-    .hero h1 { font-size: 2rem; }
-    .skills-grid { grid-template-columns: 1fr; }
-    .hub-labels { flex-direction: column; gap: 0.25rem; }
-  }
+	.skip {
+		position: absolute;
+		left: -9999px;
+		top: 8px;
+		z-index: 10;
+		background: var(--text);
+		color: var(--bg);
+		padding: 8px 14px;
+		border-radius: 8px;
+	}
+	.skip:focus { left: 8px; }
+
+	.shell {
+		position: relative;
+		z-index: 1;
+		max-width: 1180px;
+		margin: 0 auto;
+		padding: 0 clamp(20px, 5vw, 56px);
+		display: grid;
+		grid-template-columns: minmax(300px, 0.9fr) 1.35fr;
+		gap: clamp(32px, 6vw, 96px);
+	}
+
+	/* ---------- Intro (left column) ---------- */
+	.intro {
+		position: sticky;
+		top: 0;
+		height: 100vh;
+		height: 100dvh;
+		display: flex;
+		padding: 48px 0;
+		overflow-y: auto;
+		scrollbar-width: none;
+	}
+	.intro::-webkit-scrollbar { display: none; }
+	.intro-inner { margin-block: auto; }
+	.intro-inner { width: 100%; }
+
+
+	.topline {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		margin-bottom: 36px;
+	}
+	.clock {
+		font: 500 12.5px var(--mono);
+		color: var(--muted);
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+	}
+	.pulse {
+		width: 7px;
+		height: 7px;
+		border-radius: 50%;
+		background: #4a9d6b;
+		box-shadow: 0 0 0 0 rgba(74, 157, 107, 0.5);
+		animation: pulse 2.4s ease-out infinite;
+	}
+	@keyframes pulse { 70% { box-shadow: 0 0 0 8px rgba(74, 157, 107, 0); } 100% { box-shadow: 0 0 0 0 rgba(74, 157, 107, 0); } }
+
+	.theme {
+		width: 40px;
+		height: 40px;
+		border-radius: 50%;
+		border: 1px solid var(--line);
+		background: var(--surface);
+		color: var(--text);
+		display: grid;
+		place-items: center;
+		cursor: pointer;
+		transition: border-color 0.3s, transform 0.3s var(--ease);
+	}
+	.theme:hover { border-color: var(--accent); transform: rotate(-12deg); }
+	.theme svg { width: 20px; height: 20px; overflow: visible; }
+	.sun { fill: currentColor; transition: r 0.5s var(--ease); }
+	.rays line { stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+	.rays { transition: opacity 0.4s, transform 0.5s var(--ease); transform-origin: 12px 12px; }
+	.bite { fill: var(--surface); transform: translate(8px, -8px); transition: transform 0.5s var(--ease); }
+	.dark .sun { r: 8; }
+	.dark .rays { opacity: 0; transform: scale(0.5) rotate(45deg); }
+	.dark .bite { transform: translate(0, 0); }
+
+	.portrait {
+		width: 88px;
+		height: 88px;
+		border-radius: 28px;
+		object-fit: cover;
+		display: block;
+		margin-bottom: 22px;
+		box-shadow: var(--shadow);
+		transform: rotate(-3deg);
+		transition: transform 0.5s var(--ease), border-radius 0.5s var(--ease);
+	}
+	.portrait:hover { transform: rotate(2deg) scale(1.04); border-radius: 50%; }
+
+	h1 {
+		font-family: var(--serif);
+		font-weight: 600;
+		font-size: clamp(2.6rem, 1.8rem + 3vw, 4.1rem);
+		line-height: 1.02;
+		letter-spacing: -0.025em;
+		margin: 0;
+		font-variation-settings: 'SOFT' 50, 'opsz' 144;
+	}
+	.hi {
+		display: block;
+		font-size: 0.42em;
+		font-style: italic;
+		font-weight: 400;
+		color: var(--muted);
+		letter-spacing: 0;
+		margin-bottom: 6px;
+	}
+	.korean { margin: 8px 0 0; font-size: 14px; color: var(--muted); letter-spacing: 0.08em; }
+
+	.role {
+		margin: 22px 0 10px;
+		font-size: 1.12rem;
+		font-weight: 500;
+	}
+	.scribble { position: relative; display: inline-block; color: var(--accent); }
+	.scribble svg {
+		position: absolute;
+		left: -2%;
+		bottom: -9px;
+		width: 104%;
+		height: 12px;
+		overflow: visible;
+	}
+	.scribble path {
+		fill: none;
+		stroke: var(--accent);
+		stroke-width: 3;
+		stroke-linecap: round;
+		stroke-dasharray: 320;
+		stroke-dashoffset: 320;
+		animation: draw 1.1s 0.5s var(--ease) forwards;
+		opacity: 0.55;
+	}
+	@keyframes draw { to { stroke-dashoffset: 0; } }
+
+	.lede { color: var(--muted); max-width: 42ch; margin: 18px 0 0; }
+	.building {
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+		margin-top: 16px;
+		padding: 6px 12px 6px 10px;
+		border-radius: 999px;
+		border: 1px solid color-mix(in srgb, var(--gold) 45%, var(--line));
+		background: color-mix(in srgb, var(--gold) 8%, var(--surface));
+		font-size: 13.5px;
+		text-decoration: none;
+		transition: transform 0.3s var(--ease), border-color 0.3s;
+	}
+	.building strong { font-weight: 600; color: var(--accent); }
+	.building:hover { transform: translateX(3px); border-color: var(--accent); }
+	.building-dot { width: 8px; height: 8px; border-radius: 2px; background: var(--gold); transform: rotate(45deg); animation: glint 2.6s ease-in-out infinite; }
+	@keyframes glint { 50% { transform: rotate(225deg) scale(0.7); } }
+
+	nav { margin: 40px 0 36px; }
+	nav ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+	nav a {
+		display: inline-flex;
+		align-items: center;
+		gap: 12px;
+		padding: 5px 0;
+		text-decoration: none;
+		color: var(--muted);
+		font-size: 13px;
+		font-weight: 500;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
+		transition: color 0.25s;
+	}
+	.idx { font: 500 11px var(--mono); opacity: 0.7; }
+	.rule { width: 28px; height: 1.5px; background: currentColor; transition: width 0.35s var(--ease); opacity: 0.6; }
+	nav a:hover, nav a.active { color: var(--text); }
+	nav a:hover .rule, nav a.active .rule { width: 60px; opacity: 1; }
+	nav a.active .rule { background: var(--accent); }
+
+	.links { display: flex; flex-wrap: wrap; gap: 8px; }
+	.pill {
+		display: inline-flex;
+		align-items: center;
+		gap: 7px;
+		padding: 8px 14px;
+		border-radius: 999px;
+		border: 1px solid var(--line);
+		background: var(--surface);
+		color: var(--text);
+		font: 500 13.5px var(--sans);
+		text-decoration: none;
+		cursor: pointer;
+		transition: border-color 0.25s, transform 0.25s var(--ease), color 0.25s;
+	}
+	.pill svg { width: 15px; height: 15px; fill: currentColor; }
+	.pill:hover { border-color: var(--accent); color: var(--accent); transform: translateY(-2px); }
+	.pill:hover svg { animation: boop 0.45s var(--ease); }
+	@keyframes boop { 40% { transform: rotate(-14deg) scale(1.15); } }
+	.pill.solid { background: var(--text); color: var(--bg); border-color: var(--text); }
+	.pill.solid:hover { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+
+	/* ---------- Main (right column) ---------- */
+	main { padding: 96px 0 64px; min-width: 0; }
+	.block { scroll-margin-top: 40px; margin-bottom: 112px; }
+
+	.eyebrow {
+		font: 500 12.5px var(--mono);
+		text-transform: uppercase;
+		letter-spacing: 0.16em;
+		color: var(--accent);
+		margin: 0 0 22px;
+		display: flex;
+		align-items: center;
+		gap: 12px;
+	}
+	.eyebrow::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+
+	.section-note { color: var(--muted); margin: -8px 0 28px; max-width: 56ch; }
+
+	.prose p { margin: 0 0 1.1em; max-width: 62ch; }
+	.prose p:first-child {
+		font-family: var(--serif);
+		font-size: 1.32rem;
+		line-height: 1.5;
+		font-weight: 400;
+		letter-spacing: -0.005em;
+	}
+
+	.now {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		border: 1px solid var(--line);
+		border-radius: 16px;
+		background: color-mix(in srgb, var(--surface) 80%, transparent);
+		backdrop-filter: blur(6px);
+		margin-top: 28px;
+	}
+	.now-item { padding: 16px 18px; display: grid; gap: 4px; }
+	.now-item + .now-item { border-left: 1px solid var(--line); }
+	.now-k { font: 500 11px var(--mono); text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
+	.now-v { font-size: 14.5px; font-weight: 500; line-height: 1.4; }
+
+	/* Cards share this warm spotlight */
+	.job, .feature, .mini, .series {
+		position: relative;
+		isolation: isolate;
+	}
+	.job::before, .feature::before, .mini::before, .series::before {
+		content: '';
+		position: absolute;
+		inset: 0;
+		border-radius: inherit;
+		background: radial-gradient(420px circle at var(--x, 50%) var(--y, 50%), var(--accent-soft), transparent 55%);
+		opacity: 0;
+		transition: opacity 0.35s;
+		z-index: -1;
+		pointer-events: none;
+	}
+	@media (hover: hover) {
+		.job:hover::before, .feature:hover::before, .mini:hover::before, .series:hover::before { opacity: 1; }
+	}
+
+	/* Experience */
+	.jobs { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+	.job {
+		display: grid;
+		grid-template-columns: 150px 1fr;
+		gap: 20px;
+		padding: 22px;
+		margin: 0 -22px;
+		border-radius: 16px;
+		border: 1px solid transparent;
+		transition: border-color 0.3s, background-color 0.3s, opacity 0.3s;
+	}
+	@media (hover: hover) {
+		.jobs:hover .job:not(:hover) { opacity: 0.55; }
+		.job:hover { border-color: var(--line); background: color-mix(in srgb, var(--surface) 70%, transparent); }
+	}
+	.job-when { font: 500 12.5px var(--mono); color: var(--muted); padding-top: 4px; }
+	.job h3 { margin: 0; font-size: 1.05rem; font-weight: 600; line-height: 1.4; }
+	.at { color: var(--muted); margin: 0 4px; font-weight: 400; }
+	.company { color: var(--accent); }
+	.now-badge {
+		display: inline-block;
+		margin-left: 8px;
+		padding: 1px 9px;
+		border-radius: 999px;
+		font: 600 10.5px var(--mono);
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		background: var(--accent-soft);
+		color: var(--accent);
+		vertical-align: 2px;
+	}
+	.team { margin: 2px 0 0; color: var(--muted); font-size: 14px; }
+	.job ul { margin: 10px 0 12px; padding-left: 1.1em; color: var(--muted); font-size: 15px; }
+	.job li { margin-bottom: 5px; }
+	.job li::marker { color: var(--accent); }
+
+	.tags { display: flex; flex-wrap: wrap; gap: 6px; }
+	.tag {
+		font: 500 11.5px var(--mono);
+		padding: 3px 9px;
+		border-radius: 999px;
+		background: var(--surface-2);
+		color: var(--muted);
+		white-space: nowrap;
+	}
+
+	/* Featured work */
+	.features { display: grid; gap: 20px; margin-bottom: 64px; }
+	.feature {
+		display: grid;
+		grid-template-columns: 170px 1fr;
+		gap: 24px;
+		padding: 24px;
+		border: 1px solid var(--line);
+		border-radius: 22px;
+		background: color-mix(in srgb, var(--surface) 88%, transparent);
+		backdrop-filter: blur(6px);
+		box-shadow: var(--shadow);
+		transition: transform 0.4s var(--ease), border-color 0.3s;
+	}
+	.feature:hover { transform: translateY(-4px); border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); }
+	.feature-art {
+		background: var(--bg);
+		border: 1px solid var(--line);
+		border-radius: 14px;
+		padding: 10px;
+		aspect-ratio: 16 / 11;
+		align-self: start;
+	}
+	.kicker { font: 500 11.5px var(--mono); text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin: 0 0 4px; }
+	.feature h3 { margin: 0 0 8px; font-family: var(--serif); font-size: 1.55rem; font-weight: 600; letter-spacing: -0.01em; }
+	.feature h3 a { text-decoration: none; }
+	.stretch::after { content: ''; position: absolute; inset: 0; border-radius: 22px; z-index: 0; }
+	.feature h3 a:hover { color: var(--accent); }
+	.blurb { margin: 0 0 14px; color: var(--muted); font-size: 15px; }
+	.stats { list-style: none; margin: 0 0 16px; padding: 0; display: flex; flex-wrap: wrap; gap: 8px 18px; }
+	.stats li { font-family: var(--serif); font-weight: 600; font-size: 15px; color: var(--text); }
+	.stats li::before { content: '✦'; color: var(--gold); margin-right: 7px; font-size: 11px; vertical-align: 2px; }
+	.feature-foot { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; }
+	.read {
+		position: relative;
+		z-index: 1;
+		font-size: 14px;
+		font-weight: 500;
+		color: var(--accent);
+		text-decoration: none;
+		background: linear-gradient(currentColor, currentColor) 0 100% / 0 1.5px no-repeat;
+		transition: background-size 0.35s var(--ease);
+	}
+	.read:hover { background-size: 100% 1.5px; }
+	.read::after { content: ' →'; }
+
+	.sub {
+		font-family: var(--serif);
+		font-size: 1.2rem;
+		font-weight: 600;
+		margin: 0 0 16px;
+	}
+	.grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+	.mini {
+		display: grid;
+		gap: 6px;
+		align-content: start;
+		padding: 18px;
+		border-radius: 16px;
+		border: 1px solid var(--line);
+		background: color-mix(in srgb, var(--surface) 80%, transparent);
+		text-decoration: none;
+		transition: transform 0.35s var(--ease), border-color 0.3s;
+	}
+	.mini:hover { transform: translateY(-3px); border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); }
+	.mini-name { font-weight: 600; display: flex; justify-content: space-between; gap: 8px; }
+	.arrow { color: var(--muted); transition: transform 0.3s var(--ease), color 0.3s; }
+	.mini:hover .arrow { transform: translate(3px, -3px); color: var(--accent); }
+	.mini-blurb { font-size: 14px; color: var(--muted); line-height: 1.5; margin-bottom: 4px; }
+
+	/* Writing */
+	.posts { list-style: none; margin: 0 0 20px; padding: 0; border-top: 1px solid var(--line); }
+	.posts li { border-bottom: 1px solid var(--line); }
+	.posts a {
+		display: grid;
+		grid-template-columns: 96px 1fr auto;
+		gap: 16px;
+		align-items: baseline;
+		padding: 14px 4px;
+		text-decoration: none;
+		transition: padding-left 0.35s var(--ease), color 0.25s;
+	}
+	.posts a:hover { padding-left: 14px; color: var(--accent); }
+	.post-topic { font: 500 11.5px var(--mono); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+	.post-title { font-weight: 500; }
+	.post-date { font: 500 12px var(--mono); color: var(--muted); white-space: nowrap; }
+
+	.series {
+		display: flex;
+		gap: 18px;
+		align-items: center;
+		padding: 18px 20px;
+		border-radius: 16px;
+		border: 1px dashed var(--line);
+		text-decoration: none;
+		transition: border-color 0.3s;
+	}
+	.series:hover { border-color: var(--accent); }
+	.series-count {
+		font-family: var(--serif);
+		font-size: 2.4rem;
+		font-weight: 600;
+		color: var(--accent);
+		line-height: 1;
+		min-width: 1.4em;
+		text-align: center;
+	}
+	.series-title { display: block; font-weight: 600; }
+	.series-blurb { display: block; font-size: 14px; color: var(--muted); }
+
+	/* Credentials */
+	.certs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 40px; }
+	.cert {
+		display: inline-flex;
+		flex-direction: column;
+		padding: 10px 14px;
+		border-radius: 12px;
+		border: 1px solid var(--line);
+		background: color-mix(in srgb, var(--surface) 85%, transparent);
+		transition: transform 0.3s var(--ease);
+	}
+	.cert:hover { transform: translateY(-2px) rotate(-1deg); }
+	.cert.gold { border-color: color-mix(in srgb, var(--gold) 55%, var(--line)); background: color-mix(in srgb, var(--gold) 9%, var(--surface)); }
+	.cert-name { font-weight: 600; font-size: 14px; }
+	.cert-org { font: 500 11px var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+
+	.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
+	.edu { list-style: none; margin: 0 0 28px; padding: 0; display: grid; gap: 12px; }
+	.edu li { display: grid; }
+	.edu-degree { font-weight: 500; }
+	.edu-meta { font-size: 14px; color: var(--muted); }
+	.tool-row { display: grid; gap: 2px; margin-bottom: 14px; }
+	.tool-k { font: 500 11px var(--mono); text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); }
+	.tool-v { font-size: 14.5px; color: var(--muted); line-height: 1.55; }
+
+	/* Side quests: parchment cards, slightly askew */
+	.quests { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
+	.quest {
+		display: grid;
+		gap: 6px;
+		align-content: start;
+		padding: 18px;
+		border-radius: 14px;
+		text-decoration: none;
+		background: color-mix(in srgb, var(--gold) 8%, var(--surface));
+		border: 1px solid color-mix(in srgb, var(--gold) 30%, var(--line));
+		transform: rotate(var(--tilt));
+		transition: transform 0.45s var(--ease), box-shadow 0.35s;
+	}
+	.quest:hover { transform: rotate(0) translateY(-4px) scale(1.02); box-shadow: var(--shadow); }
+	.glyph { width: 34px; height: 34px; color: var(--accent); }
+	.glyph svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+	.quest:hover .glyph svg { animation: boop 0.5s var(--ease); }
+	.quest-name { font-family: var(--serif); font-weight: 600; font-size: 1.1rem; }
+	.quest-blurb { font-size: 14px; color: var(--muted); line-height: 1.5; }
+
+	/* Footer */
+	.foot { border-top: 1px solid var(--line); padding-top: 56px; display: grid; gap: 40px; }
+	.foot-cta h2 {
+		font-family: var(--serif);
+		font-size: clamp(2rem, 1.5rem + 2vw, 3rem);
+		font-weight: 600;
+		letter-spacing: -0.02em;
+		margin: 0 0 8px;
+	}
+	.foot-cta p { color: var(--muted); margin: 0 0 20px; max-width: 54ch; }
+	.foot-cta p a { color: var(--accent); text-underline-offset: 3px; }
+	.colophon { font-size: 13px; color: var(--muted); margin: 0; max-width: 60ch; }
+
+	/* Scroll reveal: content is fully visible without JS */
+	:global(.js) .reveal {
+		opacity: 0;
+		transform: translateY(18px);
+		transition: opacity 0.7s var(--ease), transform 0.7s var(--ease);
+	}
+	:global(.js) .reveal:global(.in) { opacity: 1; transform: none; }
+	:global(.js) .quest.reveal:global(.in) { transform: rotate(var(--tilt)); }
+	:global(.js) .quest.reveal:global(.in):hover { transform: rotate(0) translateY(-4px) scale(1.02); }
+
+	/* ---------- Responsive ---------- */
+	@media (max-width: 960px) {
+		.shell { grid-template-columns: 1fr; gap: 0; }
+		.intro { position: relative; height: auto; padding: 40px 0 8px; }
+		nav { display: none; }
+		.intro .links { margin-top: 26px; }
+		main { padding-top: 56px; }
+		.block { margin-bottom: 80px; }
+	}
+	@media (max-width: 640px) {
+		.now { grid-template-columns: 1fr; }
+		.now-item + .now-item { border-left: 0; border-top: 1px solid var(--line); }
+		.job { grid-template-columns: 1fr; gap: 6px; padding: 16px; margin: 0 -16px; }
+		.feature { grid-template-columns: 1fr; padding: 18px; }
+		.feature-art { max-width: 220px; }
+		.grid, .two-col { grid-template-columns: 1fr; }
+		.two-col { gap: 8px; }
+		.posts a { grid-template-columns: 1fr auto; gap: 4px 12px; }
+		.post-topic { grid-column: 1 / -1; }
+	}
+
+	@media (min-width: 961px) and (max-height: 940px) {
+		.intro { padding: 24px 0; }
+		h1 { font-size: clamp(2.4rem, 1.6rem + 2.4vw, 3.4rem); }
+		.korean { display: none; }
+		.topline { margin-bottom: 20px; }
+		.portrait { width: 68px; height: 68px; border-radius: 22px; margin-bottom: 14px; }
+		.role { margin-top: 14px; }
+		.lede { margin-top: 12px; }
+		nav { margin: 22px 0 22px; }
+		nav a { padding: 2px 0; }
+	}
+	@media (min-width: 961px) and (max-height: 820px) {
+		.lede, .portrait { display: none; }
+		.topline { margin-bottom: 14px; }
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.scribble path { animation: none; stroke-dashoffset: 0; }
+		.pulse { animation: none; }
+		:global(.js) .reveal { opacity: 1; transform: none; }
+	}
 </style>
