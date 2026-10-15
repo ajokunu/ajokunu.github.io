@@ -273,7 +273,7 @@
           {:else if tile.flash === 'success'}
             <span class="resolved-text">RESOLVED</span>
           {:else}
-            <span class="tile-idle-text">—</span>
+            <span class="tile-idle-text">-</span>
           {/if}
         </div>
       </button>
@@ -286,9 +286,9 @@
           <p class="overlay-title">SOC_ANALYST.exe</p>
           <p class="overlay-desc">Alerts incoming. Click threats.<br/>Ignore the noise. Don't let breaches through.</p>
           <p class="overlay-legend">
-            <span class="legend-dot red-dot"></span> CRITICAL — click fast
-            <span class="legend-dot yellow-dot"></span> MEDIUM — click to triage
-            <span class="legend-dot green-dot"></span> LOW — don't touch
+            <span class="legend-dot red-dot"></span> CRITICAL - click fast
+            <span class="legend-dot yellow-dot"></span> MEDIUM - click to triage
+            <span class="legend-dot green-dot"></span> LOW - don't touch
           </p>
           <button class="start-btn" on:click={startGame}>START SHIFT</button>
         </div>

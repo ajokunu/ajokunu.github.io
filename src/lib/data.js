@@ -1,20 +1,20 @@
 export const profile = {
 	name: 'Aaron Lindahl',
 	koreanName: '애런 린달',
-	title: 'Security Engineer',
-	company: 'Mastercard',
-	location: 'Greater Boston',
+	title: 'Lead Information Security Consultant',
+	company: 'Capital One',
+	location: 'New York, NY',
 	school: 'NYU Tandon School of Engineering',
-	bio: 'Security Engineer @ Mastercard | Cloud Security + AI Builder | AWS Community Builder | NYU Engineering',
+	bio: 'Security Engineer @ Capital One | Cloud + AI Security | AI Builder | AWS Community Builder | NYU Tandon',
 	tagline: 'I make clouds secure and dungeons dangerous.',
 	avatar: 'https://avatars.githubusercontent.com/u/65878280?v=4',
 	github: 'https://github.com/ajokunu',
 	linkedin: 'https://www.linkedin.com/in/aaron-lindahl-58574a108',
-	medium: 'https://medium.com/@ajokunu',
+	medium: 'https://medium.com/@AaronLJ',
 	awsCommunity: 'https://community.aws/u/ajokunu',
 	email: null,
 	githubHandle: 'ajokunu',
-	followers: '4,502',
+	followers: '6,000',
 	connections: '500+'
 };
 
@@ -38,11 +38,38 @@ export const timeline = [
 	{
 		type: 'job',
 		current: true,
-		date: '2024 – Present',
-		title: 'Mastercard',
-		subtitle: 'Security Engineer — Greater Boston',
-		detail: 'Cloud Security + AI Builder. Designing threat models, guiding secure cloud adoption, and shaping security strategy for critical financial infrastructure. AWS Community Builder.',
+		date: '2026 - Present',
+		title: 'Capital One',
+		subtitle: 'Lead Information Security Consultant - New York, NY',
+		detail: 'Security architecture and engineering for financial services infrastructure. Built a Claude skill that does the first pass of API security review against internal policy, and designs network connectivity and IAM for large partner networks.',
 		tags: []
+	},
+	{
+		type: 'job',
+		date: '2024 - 2026',
+		title: 'Mastercard',
+		subtitle: 'Senior Information Security Engineer - Boston, MA',
+		detail: 'Cloud security engineering. Shipped mTLS and VPC PrivateLink across 12 AWS accounts, ran 25 security architecture reviews, scanned 42 MCP servers and built data sanitization guardrails for AI systems, and cut third-party system reviews from a week to 30 minutes with LLM automation.',
+		tags: []
+	},
+	{
+		type: 'project',
+		date: '2025 - Present',
+		title: 'TableTalesAI',
+		subtitle: 'Production AI Game Master on Claude',
+		detail: 'AI-powered virtual tabletop (tabletalesai.com), grown from Donnie the Robot DM. Write-ahead audit and undo for every agent tool call, a deterministic engine the model can only narrate, model routing across Claude tiers on the Anthropic API or Amazon Bedrock, and a prompt-injection guardrail on uploaded documents.',
+		tags: ['TypeScript', 'Claude API', 'Bedrock', 'pgvector', 'Agent Security'],
+		isNew: true,
+		url: 'https://tabletalesai.com'
+	},
+	{
+		type: 'project',
+		date: '2026',
+		title: 'PhantomPacket',
+		subtitle: 'ML Classifier for Slopsquatting',
+		detail: 'Detects hallucinated package names from the name alone: about 65 lexical, naming, semantic and statistical features and 12 classifier families, with notebooks, tests, CI and a paper.',
+		tags: ['Python', 'scikit-learn', 'XGBoost', 'AI Supply Chain'],
+		url: 'https://github.com/ajokunu/phantompacket'
 	},
 	{
 		type: 'project',
@@ -112,20 +139,20 @@ export const timeline = [
 	},
 	{
 		type: 'dnd',
-		date: '2025',
+		date: '2023',
 		title: "Tenser's Floating Distro",
 		subtitle: 'Deep Learning Stat Block Generator',
-		detail: 'Neural network that generates balanced D&D stat blocks based on creature type, CR, and narrative context.',
+		detail: 'Early, unfinished deep learning experiment for generating D&D stat blocks.',
 		tags: ['Deep Learning', 'D&D'],
 		stars: 1,
 		url: 'https://github.com/ajokunu/Tensers-floating-Distro'
 	},
 	{
 		type: 'job',
-		date: '2022 – 2024',
+		date: '2024',
 		title: 'Mass General Brigham',
-		subtitle: 'Security Engineering — Boston, MA',
-		detail: 'Engineered security monitoring and detection infrastructure for a major healthcare network. Built SIEM detection pipelines, managed vulnerability remediation programs, and ensured HIPAA compliance across cloud and on-premises systems.',
+		subtitle: 'Senior Information Security Engineer - Boston, MA',
+		detail: 'Greenfield Azure security architecture enforcing NIST 800-53, FedRAMP Moderate and HITRUST through Azure Policy, CrowdStrike CNAPP across 80,000+ cloud assets in AWS, Azure and GCP, and a secure container image CI/CD pipeline aligned with CIS Benchmarks.',
 		tags: []
 	},
 	{
@@ -140,10 +167,10 @@ export const timeline = [
 	},
 	{
 		type: 'job',
-		date: '2021 – 2022',
+		date: '2022 - 2024',
 		title: 'Tenable',
-		subtitle: 'Security Engineering — Columbia, MD',
-		detail: 'Developed automated vulnerability scanning workflows and Python integrations using the PyTenable SDK. Built asset discovery and prioritization tooling that streamlined exposure management across enterprise environments.',
+		subtitle: 'IT Engineer II - Columbia, MD (Remote)',
+		detail: 'Enterprise technical support for Tenable.vm, Tenable.sc and Nessus deployments, SAML, LDAP and Entra ID integrations via Okta, and Python and Bash automation for vulnerability management workflows.',
 		tags: []
 	},
 	{
@@ -157,10 +184,18 @@ export const timeline = [
 	},
 	{
 		type: 'job',
-		date: '2019 – 2021',
+		date: '2022',
 		title: 'Wayfair',
-		subtitle: 'Security Engineering — Boston, MA',
-		detail: 'Implemented cloud security controls and application security automation for a high-traffic e-commerce platform. Supported security architecture reviews, CI/CD pipeline security integration, and AWS infrastructure hardening.',
+		subtitle: 'IT Support Engineer - Boston, MA',
+		detail: 'Managed 100+ endpoints and 3 network stacks at 99.9% uptime, and implemented IAM roles with Intune and Entra ID.',
+		tags: []
+	},
+	{
+		type: 'job',
+		date: '2019 - 2022',
+		title: 'Community Health Options',
+		subtitle: 'IT Support Specialist - Lewiston, ME',
+		detail: 'Help desk support and Active Directory IAM administration. Where it started.',
 		tags: []
 	}
 ];

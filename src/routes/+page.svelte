@@ -19,7 +19,7 @@
   let treeEl;
 
   const phrases = [
-    'Security Engineer @ Mastercard',
+    'Security Engineer @ Capital One',
     'NYU Engineering Student',
     'Cloud Security + AI Builder',
     'AWS Community Builder',
@@ -203,7 +203,7 @@
 </script>
 
 <svelte:head>
-  <title>{profile.name} — {profile.title}</title>
+  <title>{profile.name} - {profile.title}</title>
 </svelte:head>
 
 <!-- HERO -->
@@ -430,7 +430,6 @@
 <footer class="footer">
   <div class="footer-cta">
     <h4>Let's build something secure.</h4>
-    <p>Open to Senior Security Engineer & Security Architecture opportunities.</p>
   </div>
   <div class="footer-links">
     <a href={profile.github} target="_blank" rel="noopener">GitHub</a>
