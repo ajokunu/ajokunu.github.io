@@ -204,7 +204,7 @@
 			<div class="now reveal">
 				<div class="now-item">
 					<span class="now-k">Day job</span>
-					<span class="now-v">AI and cloud security lead at Capital One</span>
+					<span class="now-v">AI and cloud security at Capital One</span>
 				</div>
 				<div class="now-item">
 					<span class="now-k">Building</span>
